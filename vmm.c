@@ -17,8 +17,13 @@
 #define PAGESIZE 256
 #define FRAMECOUNT 256
 #define FRAMESIZE 256
-
 #define TLBSIZE 16
+
+FILE *backing_store_file;
+
+int tlb_hits = 0;
+signed char buffer[FRAMESIZE];
+int page_fault = 0;
 
 struct PageTableEntry
 {
@@ -33,7 +38,7 @@ struct Frame
     signed char data[FRAMESIZE];
     int last_accessed;
 };
-//                             Frame # --> Frame data
+//Frame # --> Frame data
 struct Frame physical_memory[FRAMECOUNT];
 
 struct TLBEntry
@@ -42,6 +47,7 @@ struct TLBEntry
     int frame_number;
     int last_accessed;
 };
+int count = 0;
 struct TLBEntry tlb[TLBSIZE];
 
 /**
@@ -51,6 +57,60 @@ struct TLBEntry tlb[TLBSIZE];
 int availableFrameIndex = 0;
 int availablePageTableIndex = 0;
 
+int checkBackstore(int pageNumber){
+    printf("\nEntered backstore\n");
+    page_fault++;
+
+    fseek(backing_store_file, pageNumber * FRAMESIZE, SEEK_SET);
+    fread(buffer, sizeof(char), FRAMESIZE, backing_store_file);
+      
+
+    for(int i=0; i<FRAMESIZE; i++){
+        if(page_table[i].frame_number==-1){
+            page_table[i].frame_number = 0;
+            availableFrameIndex = i;
+            printf("\nFound available index\n");
+            break;
+        }
+    }
+    int index = availableFrameIndex * FRAMESIZE;
+    for(int i=0; i<FRAMESIZE; i++){
+        printf("\nFilling in physical memory\n");
+        physical_memory[i].data[index] = buffer[i];
+        index++;
+    }
+    page_table[pageNumber].page_number = availableFrameIndex;
+    return availableFrameIndex;
+}
+
+int findAddress(int logicalAddress, int pageNumber, int frameOffset){
+    int numberOfFrame = -1;
+
+    //TLB table
+    for(int i=0; i<TLBSIZE; i++){
+        if(tlb[i].page_number == pageNumber){
+            numberOfFrame = tlb[i].frame_number;
+            tlb_hits++;
+        }
+    }
+
+    //Page Table
+    if(numberOfFrame < 0){
+        //Try finding in page table
+        if(page_table[pageNumber].page_number == pageNumber){
+            numberOfFrame = page_table[pageNumber].frame_number;
+        }else{
+            //If not found in page table, check backstore
+            numberOfFrame = checkBackstore(pageNumber);
+        }
+
+        tlb[count%TLBSIZE].page_number = pageNumber;
+        tlb[count%TLBSIZE].frame_number = numberOfFrame;
+        count++;   
+    }
+    int result = frameOffset + (numberOfFrame * FRAMESIZE);
+    return result;
+}
 
 /**
  * takes 2 commands line args
@@ -70,14 +130,14 @@ int main(int argc, char *argv[])
     unsigned int logical_address;
     int frame_offset; 
     int page_number;
+
+    int resultPhysicalAddress = 0;
     //data read from "physical memory", must be signed type
     signed char data_read;
     
     char *address_text_filename;
     char *backing_store_filename;
     //statistic variables
-    int page_fault = 0;
-    int tlb_hits = 0;
     int num_addresses_translated = 0;
     
     address_text_filename = argv[1];
@@ -112,7 +172,7 @@ int main(int argc, char *argv[])
         exit(-2);
     }
 
-    FILE *backing_store_file = fopen(backing_store_filename, "rb");
+    backing_store_file = fopen(backing_store_filename, "rb");
     if (backing_store_file == NULL)
     {
         perror("could not open backingstore");
@@ -127,7 +187,9 @@ int main(int argc, char *argv[])
 
         printf("Virtual Address %5d, Page Number: %3d, Fame Offset: %3d\n", logical_address, page_number, frame_offset);
 
-        //printf("Virtual address: %d Physical address: %d Value: %d\n", logical_address, (physical_address << 8) | frame_offset, data_read);
+        resultPhysicalAddress = findAddress(logical_address, page_number, frame_offset);
+        printf("Virtual address: %d Physical address: %d Value: %d\n", logical_address, resultPhysicalAddress, data_read);
+        num_addresses_translated++;
     }
 
     float hit_rate = (float)tlb_hits / num_addresses_translated;
