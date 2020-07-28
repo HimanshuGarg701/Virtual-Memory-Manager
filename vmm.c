@@ -58,7 +58,7 @@ int availableFrameIndex = 0;
 int availablePageTableIndex = 0;
 
 int checkBackstore(int pageNumber){
-    printf("\nEntered backstore\n");
+    //printf("\nEntered backstore\n");
     page_fault++;
 
     fseek(backing_store_file, pageNumber * FRAMESIZE, SEEK_SET);
@@ -69,15 +69,14 @@ int checkBackstore(int pageNumber){
         if(page_table[i].frame_number==-1){
             page_table[i].frame_number = 0;
             availableFrameIndex = i;
-            printf("\nFound available index\n");
+            //printf("\nFound available index\n");
             break;
         }
     }
-    int index = availableFrameIndex * FRAMESIZE;
+ 
     for(int i=0; i<FRAMESIZE; i++){
-        printf("\nFilling in physical memory\n");
-        physical_memory[i].data[index] = buffer[i];
-        index++;
+        // printf("\nFilling in physical memory\n");
+        physical_memory[availableFrameIndex].data[i] = buffer[i];
     }
     page_table[pageNumber].page_number = availableFrameIndex;
     return availableFrameIndex;
@@ -185,7 +184,7 @@ int main(int argc, char *argv[])
         page_number = get_page_num(logical_address);
         frame_offset = get_frame_offset(logical_address);
 
-        printf("Virtual Address %5d, Page Number: %3d, Fame Offset: %3d\n", logical_address, page_number, frame_offset);
+        //printf("Virtual Address %5d, Page Number: %3d, Fame Offset: %3d\n", logical_address, page_number, frame_offset);
 
         resultPhysicalAddress = findAddress(logical_address, page_number, frame_offset);
         printf("Virtual address: %d Physical address: %d Value: %d\n", logical_address, resultPhysicalAddress, data_read);
