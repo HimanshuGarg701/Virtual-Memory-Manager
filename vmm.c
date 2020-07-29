@@ -67,8 +67,8 @@ int checkBackstore(int pageNumber){
 
     for(int i=0; i<FRAMESIZE; i++){
         if(page_table[i].frame_number==-1){
-            page_table[i].frame_number = 0;
             availableFrameIndex = i;
+            page_table[i].frame_number = 0;
             //printf("\nFound available index\n");
             break;
         }
@@ -96,19 +96,20 @@ int findAddress(int logicalAddress, int pageNumber, int frameOffset){
     //Page Table
     if(numberOfFrame < 0){
         //Try finding in page table
-        if(page_table[pageNumber].page_number == pageNumber){
-            numberOfFrame = page_table[pageNumber].frame_number;
+        if(page_table[pageNumber].page_number == -1){
+            numberOfFrame = checkBackstore(pageNumber);
         }else{
             //If not found in page table, check backstore
-            numberOfFrame = checkBackstore(pageNumber);
+            numberOfFrame = page_table[pageNumber].page_number;
         }
 
-        tlb[count%TLBSIZE].page_number = pageNumber;
-        tlb[count%TLBSIZE].frame_number = numberOfFrame;
+        int index = count%TLBSIZE;
+        tlb[index].page_number = pageNumber;
+        tlb[index].frame_number = numberOfFrame;
         count++;   
     }
     int result = frameOffset + (numberOfFrame * FRAMESIZE);
-    return result;
+    return numberOfFrame;
 }
 
 /**
@@ -185,9 +186,9 @@ int main(int argc, char *argv[])
         frame_offset = get_frame_offset(logical_address);
 
         //printf("Virtual Address %5d, Page Number: %3d, Fame Offset: %3d\n", logical_address, page_number, frame_offset);
-
+    
         resultPhysicalAddress = findAddress(logical_address, page_number, frame_offset);
-        printf("Virtual address: %d Physical address: %d Value: %d\n", logical_address, resultPhysicalAddress, data_read);
+        printf("Virtual address: %d Physical address: %d Value: %d\n", logical_address, (resultPhysicalAddress << 8) | frame_offset, data_read);
         num_addresses_translated++;
     }
 
