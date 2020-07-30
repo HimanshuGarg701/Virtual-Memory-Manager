@@ -146,11 +146,6 @@ int main(int argc, char *argv[])
     printf("Hit Rate %0.2f\nPage Fault Rate: %0.2f\n", hit_rate, fault_rate);
     fclose(addresses_to_translate);
     fclose(backing_store_file);
-
-    printf("\nPageCount %d\n" , pageCount);
-    printf("\ntlb hits %d\n", tlb_hits);
-    printf("\npage faults %d\n", page_fault);
-    printf("\ntotal %d\n", num_addresses_translated);
 }
 
 
