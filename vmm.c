@@ -4,6 +4,9 @@
 #include <string.h>
 #include <errno.h>
 int pageCount = 0;
+int checkBackstore(int pageNumber);
+int findAddress(int logicalAddress, int pageNumber, int frameOffset);
+
 //Bit mask for masking out lower 8 bits (0-7)
 #define MASK_FRAME_NUMER 0x000000FF
 //Bit mask for masking out bits 8-15
@@ -56,61 +59,6 @@ struct TLBEntry tlb[TLBSIZE];
  */ 
 int availableFrameIndex = 0;
 int availablePageTableIndex = 0;
-
-int checkBackstore(int pageNumber){
-    //printf("\nEntered backstore\n");
-    page_fault++;
-
-    fseek(backing_store_file, pageNumber * FRAMESIZE, SEEK_SET);
-    fread(buffer, sizeof(char), FRAMESIZE, backing_store_file);
-      
-
-    for(int i=0; i<FRAMESIZE; i++){
-        if(page_table[i].frame_number==-1){
-            availableFrameIndex = i;
-            page_table[i].frame_number = 0;
-            //printf("\nFound available index\n");
-            break;
-        }
-    }
- 
-    for(int i=0; i<FRAMESIZE; i++){
-        // printf("\nFilling in physical memory\n");
-        physical_memory[availableFrameIndex].data[i] = buffer[i];
-    }
-    page_table[pageNumber].page_number = availableFrameIndex;
-    return availableFrameIndex;
-}
-
-int findAddress(int logicalAddress, int pageNumber, int frameOffset){
-    int numberOfFrame = -1;
-
-    //TLB table
-    for(int i=0; i<TLBSIZE; i++){
-        if(tlb[i].page_number == pageNumber){
-            numberOfFrame = tlb[i].frame_number;
-            tlb_hits++;
-        }
-    }
-
-    //Page Table
-    if(numberOfFrame < 0){
-        //Try finding in page table
-        if(page_table[pageNumber].page_number != -1){
-            numberOfFrame = page_table[pageNumber].page_number;
-            pageCount++;
-        }else{
-            //If not found in page table, check backstore
-            numberOfFrame = checkBackstore(pageNumber);
-        }
-
-        int index = count%TLBSIZE;
-        tlb[index].page_number = pageNumber;
-        tlb[index].frame_number = numberOfFrame;
-        count++;   
-    }
-    return numberOfFrame;
-}
 
 /**
  * takes 2 commands line args
@@ -189,6 +137,7 @@ int main(int argc, char *argv[])
     
         resultPhysicalAddress = findAddress(logical_address, page_number, frame_offset);
         result = (resultPhysicalAddress << 8) | frame_offset;  
+        data_read = physical_memory[resultPhysicalAddress].data[frame_offset];
         printf("Virtual address: %d Physical address: %d Value: %d\n", logical_address, result, data_read);
     }
 
@@ -200,6 +149,63 @@ int main(int argc, char *argv[])
 
     printf("\nPageCount %d\n" , pageCount);
     printf("\ntlb hits %d\n", tlb_hits);
-    printf("\npage faults %d\n,", page_fault);
+    printf("\npage faults %d\n", page_fault);
     printf("\ntotal %d\n", num_addresses_translated);
+}
+
+
+int findAddress(int logicalAddress, int pageNumber, int frameOffset){
+    int numberOfFrame = -1;
+
+    //TLB table
+    for(int i=0; i<TLBSIZE; i++){
+        if(tlb[i].page_number == pageNumber){
+            numberOfFrame = tlb[i].frame_number;
+            tlb_hits++;
+        }
+    }
+
+    //Page Table
+    if(numberOfFrame < 0){
+        //Try finding in page table
+        if(page_table[pageNumber].page_number != -1){
+            numberOfFrame = page_table[pageNumber].page_number;
+            pageCount++;
+        }else{
+            //If not found in page table, check backstore
+            numberOfFrame = checkBackstore(pageNumber);
+        }
+
+        int index = count%TLBSIZE;
+        tlb[index].page_number = pageNumber;
+        tlb[index].frame_number = numberOfFrame;
+        count++;   
+    }
+    //printf("\n Value %d\n", physical_memory[numberOfFrame].data[frameOffset]);
+    return numberOfFrame;
+}
+
+int checkBackstore(int pageNumber){
+    //printf("\nEntered backstore\n");
+    page_fault++;
+
+    fseek(backing_store_file, pageNumber * FRAMESIZE, SEEK_SET);
+    fread(buffer, sizeof(char), FRAMESIZE, backing_store_file);
+      
+
+    for(int i=0; i<FRAMESIZE; i++){
+        if(page_table[i].frame_number==-1){
+            availableFrameIndex = i;
+            page_table[i].frame_number = 1;
+            //printf("\nFound available index\n");
+            break;
+        }
+    }
+ 
+    for(int i=0; i<FRAMESIZE; i++){
+        // printf("\nFilling in physical memory\n");
+        physical_memory[availableFrameIndex].data[i] = buffer[i];
+    }
+    page_table[pageNumber].page_number = availableFrameIndex;
+    return availableFrameIndex;
 }
