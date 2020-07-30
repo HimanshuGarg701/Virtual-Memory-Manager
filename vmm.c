@@ -3,7 +3,7 @@
 #include <sys/types.h>
 #include <string.h>
 #include <errno.h>
-
+int pageCount = 0;
 //Bit mask for masking out lower 8 bits (0-7)
 #define MASK_FRAME_NUMER 0x000000FF
 //Bit mask for masking out bits 8-15
@@ -96,11 +96,12 @@ int findAddress(int logicalAddress, int pageNumber, int frameOffset){
     //Page Table
     if(numberOfFrame < 0){
         //Try finding in page table
-        if(page_table[pageNumber].page_number == -1){
-            numberOfFrame = checkBackstore(pageNumber);
+        if(page_table[pageNumber].page_number != -1){
+            numberOfFrame = page_table[pageNumber].page_number;
+            pageCount++;
         }else{
             //If not found in page table, check backstore
-            numberOfFrame = page_table[pageNumber].page_number;
+            numberOfFrame = checkBackstore(pageNumber);
         }
 
         int index = count%TLBSIZE;
@@ -108,7 +109,6 @@ int findAddress(int logicalAddress, int pageNumber, int frameOffset){
         tlb[index].frame_number = numberOfFrame;
         count++;   
     }
-    int result = frameOffset + (numberOfFrame * FRAMESIZE);
     return numberOfFrame;
 }
 
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
         perror("could not open backingstore");
         exit(-2);
     }
-
+    int result = 0;
     while (fscanf(addresses_to_translate, "%d\n", &logical_address) == 1)
     {
         num_addresses_translated++;
@@ -188,8 +188,8 @@ int main(int argc, char *argv[])
         //printf("Virtual Address %5d, Page Number: %3d, Fame Offset: %3d\n", logical_address, page_number, frame_offset);
     
         resultPhysicalAddress = findAddress(logical_address, page_number, frame_offset);
-        printf("Virtual address: %d Physical address: %d Value: %d\n", logical_address, (resultPhysicalAddress << 8) | frame_offset, data_read);
-        num_addresses_translated++;
+        result = (resultPhysicalAddress << 8) | frame_offset;  
+        printf("Virtual address: %d Physical address: %d Value: %d\n", logical_address, result, data_read);
     }
 
     float hit_rate = (float)tlb_hits / num_addresses_translated;
@@ -197,4 +197,9 @@ int main(int argc, char *argv[])
     printf("Hit Rate %0.2f\nPage Fault Rate: %0.2f\n", hit_rate, fault_rate);
     fclose(addresses_to_translate);
     fclose(backing_store_file);
+
+    printf("\nPageCount %d\n" , pageCount);
+    printf("\ntlb hits %d\n", tlb_hits);
+    printf("\npage faults %d\n,", page_fault);
+    printf("\ntotal %d\n", num_addresses_translated);
 }
